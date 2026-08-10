@@ -4,6 +4,7 @@ import 'dotenv/config'
 import { Server } from 'socket.io'
 import cors from 'cors'
 import { joinRoomSchema, messageSchema } from './schemas/joinRoomSchema.js'
+import { leaveRoomSchema } from './schemas/leaveRoomSchema.js'
 
 const app = express()
 
@@ -26,7 +27,7 @@ const io = new Server(server, {
 })
 
 io.on('connection', socket => {
-	console.log('connected')
+	console.log('connected', socket.id)
 
 	socket.on(
 		'connectToRoom',
@@ -136,6 +137,7 @@ io.on('connection', socket => {
 
 			io.to(roomNum).emit('userJoined', {
 				usersConnected: usersCount,
+				pcConnected: users.some(user => user.data.type === 'pc'),
 			})
 		},
 	)
@@ -147,7 +149,6 @@ io.on('connection', socket => {
 			return
 		}
 		const { roomNum, lang } = parsed.data
-		console.log('sdf')
 		socket.to(roomNum).emit('message', { type: 'lang', data: lang })
 	})
 
@@ -175,9 +176,73 @@ io.on('connection', socket => {
 
 			io.to(roomNum).emit('userJoined', {
 				usersConnected: usersCount,
+				pcConnected: users.some(user => user.data.type === 'pc'),
 			})
 		}
 	})
+
+	socket.on(
+		'leaveRoom',
+		async (
+			data,
+			cb: (response: { success: boolean; error?: string }) => void,
+		) => {
+			const parsed = leaveRoomSchema.safeParse(data)
+			if (!parsed.success) {
+				cb({ success: false, error: parsed.error.issues[0].message })
+				return
+			}
+
+			const { type, roomNum } = parsed.data
+			const { type: oldType, roomNum: oldRoomNum } = socket.data
+
+			if (!oldRoomNum || !oldType) {
+				cb({
+					success: false,
+					error: 'Socket is not in a room',
+				})
+				return
+			}
+
+			if (oldType !== type || roomNum !== oldRoomNum) {
+				cb({ success: false, error: 'Invalid Room Data' })
+				return
+			}
+
+			if (type === 'pc') {
+				const room = rooms.get(oldRoomNum)
+				if (room) {
+					room.hasPc = false
+				}
+			}
+
+			socket.leave(oldRoomNum)
+
+			delete socket.data.type
+			delete socket.data.roomNum
+
+			const users = await io.in(oldRoomNum).fetchSockets()
+
+			if (users.length === 0) {
+				rooms.delete(oldRoomNum)
+			} else {
+				const usersCount = users.filter(
+					user => user.data.type === 'user',
+				).length
+
+				io.to(roomNum).emit('userJoined', {
+					usersConnected: usersCount,
+					pcConnected: users.some(user => user.data.type === 'pc'),
+				})
+			}
+			console.log(
+				`User with type: ${type} has successfully left the room: ${roomNum}`,
+			)
+			cb({
+				success: true,
+			})
+		},
+	)
 })
 
 server.listen(port, () => {
