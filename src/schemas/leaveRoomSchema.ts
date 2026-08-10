@@ -5,4 +5,4 @@ export const leaveRoomSchema = z.object({
 	roomNum: z.string().min(3, 'Room Id Is Too Short'),
 })
 
-export type JoinRoom = z.infer<typeof leaveRoomSchema>
+export type LeaveRoom = z.infer<typeof leaveRoomSchema>
