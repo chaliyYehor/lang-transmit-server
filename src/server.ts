@@ -137,6 +137,7 @@ io.on('connection', socket => {
 
 			io.to(roomNum).emit('userJoined', {
 				usersConnected: usersCount,
+				pcConnected: users.some(user => user.data.type === 'pc'),
 			})
 		},
 	)
@@ -175,6 +176,7 @@ io.on('connection', socket => {
 
 			io.to(roomNum).emit('userJoined', {
 				usersConnected: usersCount,
+				pcConnected: users.some(user => user.data.type === 'pc'),
 			})
 		}
 	})
@@ -208,18 +210,18 @@ io.on('connection', socket => {
 			}
 
 			if (type === 'pc') {
-				const room = rooms.get(roomNum)
+				const room = rooms.get(oldRoomNum)
 				if (room) {
-					rooms.set(roomNum, { hasPc: false })
+					room.hasPc = false
 				}
 			}
 
-			socket.leave(roomNum)
+			socket.leave(oldRoomNum)
 
 			delete socket.data.type
 			delete socket.data.roomNum
 
-			const users = await io.in(roomNum).fetchSockets()
+			const users = await io.in(oldRoomNum).fetchSockets()
 
 			if (users.length === 0) {
 				rooms.delete(oldRoomNum)
@@ -230,10 +232,14 @@ io.on('connection', socket => {
 
 				io.to(roomNum).emit('userJoined', {
 					usersConnected: usersCount,
+					pcConnected: users.some(user => user.data.type === 'pc'),
 				})
 			}
+			console.log(
+				`User with type: ${type} has successfully left the room: ${roomNum}`,
+			)
 			cb({
-				success: true
+				success: true,
 			})
 		},
 	)
