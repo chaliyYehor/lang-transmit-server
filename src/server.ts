@@ -11,9 +11,14 @@ const app = express()
 const port = process.env.PORT || 5000
 const server = http.createServer(app)
 
+const allowedOrigins = [
+	process.env.CLIENT_URL || 'http://localhost:5173',
+	process.env.TAURI_URL || 'http://localhost:3000',
+]
+
 app.use(
 	cors({
-		origin: [process.env.CLIENT_URL || 'http://localhost:5173'],
+		origin: allowedOrigins,
 		methods: ['GET', 'POST', 'PUT', 'DELETE'],
 	}),
 )
@@ -22,7 +27,8 @@ const rooms = new Map<string, { hasPc: boolean }>()
 
 const io = new Server(server, {
 	cors: {
-		origin: '*',
+		origin: allowedOrigins,
+		methods: ['GET', 'POST'],
 	},
 })
 
@@ -35,6 +41,10 @@ io.on('connection', socket => {
 			data,
 			cb: (response: { success: boolean; error?: string }) => void,
 		) => {
+			if (!cb || typeof cb !== 'function') {
+				console.log('Callback is not a function')
+				return
+			}
 			const parsed = joinRoomSchema.safeParse(data)
 
 			if (!parsed.success) {
@@ -149,6 +159,10 @@ io.on('connection', socket => {
 			return
 		}
 		const { roomNum, lang } = parsed.data
+		if (!socket.data.roomNum || socket.data.roomNum !== roomNum) {
+			console.log(`Socket ${socket.id} is not in room ${roomNum}`)
+			return
+		}
 		socket.to(roomNum).emit('message', { type: 'lang', data: lang })
 	})
 
