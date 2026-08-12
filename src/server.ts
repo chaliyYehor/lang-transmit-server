@@ -16,7 +16,8 @@ const server = http.createServer(app)
 const allowedOrigins = [
 	process.env.CLIENT_URL || 'http://localhost:5173',
 	process.env.TAURI_URL || 'http://localhost:3000',
-	'https://lang-transmit-client-jj9m72i3h-chaliyyehors-projects.vercel.app',
+	process.env.VERCEL_URL || '',
+	process.env.TAURI_PROD_URL || '',
 ]
 
 app.set('trust proxy', 1)
