@@ -1,4 +1,4 @@
-import express from 'express'
+import express, { Request, Response } from 'express'
 import http from 'http'
 import 'dotenv/config'
 import { Server } from 'socket.io'
@@ -284,6 +284,10 @@ io.on('connection', socket => {
 			})
 		},
 	)
+})
+
+app.get('/', (req: Request, res: Response) => {
+	res.send('Language Transmit Server is running')
 })
 
 server.listen(port, () => {
