@@ -6,6 +6,7 @@ import cors from 'cors'
 import { joinRoomSchema, messageSchema } from './schemas/joinRoomSchema.js'
 import { leaveRoomSchema } from './schemas/leaveRoomSchema.js'
 import { wsArcjet } from './arcjet.js'
+import helmet from 'helmet'
 
 const app = express()
 
@@ -18,6 +19,10 @@ const allowedOrigins = [
 	'https://lang-transmit-client-jj9m72i3h-chaliyyehors-projects.vercel.app',
 ]
 
+app.set('trust proxy', 1)
+
+app.use(helmet())
+
 app.use(
 	cors({
 		origin: allowedOrigins,
@@ -28,6 +33,7 @@ app.use(
 const rooms = new Map<string, { hasPc: boolean }>()
 
 const io = new Server(server, {
+	maxHttpBufferSize: 1e4,
 	cors: {
 		origin: allowedOrigins,
 		methods: ['GET', 'POST'],
