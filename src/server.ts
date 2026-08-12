@@ -34,8 +34,6 @@ app.use(
 	}),
 )
 
-
-
 const rooms = new Map<string, { hasPc: boolean }>()
 
 const io = new Server(server, {
@@ -72,8 +70,6 @@ io.use(async (socket, next) => {
 })
 
 io.on('connection', socket => {
-	console.log('connected', socket.id)
-
 	socket.on(
 		'connectToRoom',
 		async (
@@ -81,7 +77,6 @@ io.on('connection', socket => {
 			cb: (response: { success: boolean; error?: string }) => void,
 		) => {
 			if (!cb || typeof cb !== 'function') {
-				console.log('Callback is not a function')
 				return
 			}
 			const parsed = joinRoomSchema.safeParse(data)
@@ -106,8 +101,6 @@ io.on('connection', socket => {
 			 * Это НЕ второй PC.
 			 */
 			if (socket.data.type === type && socket.data.roomNum === roomNum) {
-				console.log(`Socket ${socket.id} is already in room ${roomNum}`)
-
 				cb({
 					success: true,
 				})
@@ -171,8 +164,6 @@ io.on('connection', socket => {
 			 */
 			socket.join(roomNum)
 
-			console.log('Rooms:', rooms)
-
 			cb({
 				success: true,
 			})
@@ -194,12 +185,10 @@ io.on('connection', socket => {
 	socket.on('message', data => {
 		const parsed = messageSchema.safeParse(data)
 		if (!parsed.success) {
-			console.log(parsed.error.issues)
 			return
 		}
 		const { roomNum, lang } = parsed.data
 		if (!socket.data.roomNum || socket.data.roomNum !== roomNum) {
-			console.log(`Socket ${socket.id} is not in room ${roomNum}`)
 			return
 		}
 		socket.to(roomNum).emit('message', { type: 'lang', data: lang })
@@ -209,8 +198,6 @@ io.on('connection', socket => {
 		const { type, roomNum } = socket.data
 
 		if (!roomNum) return
-
-		console.log(`Disconnected: ${type} from room ${roomNum}`)
 
 		if (type === 'pc') {
 			const room = rooms.get(roomNum)
@@ -288,9 +275,6 @@ io.on('connection', socket => {
 					pcConnected: users.some(user => user.data.type === 'pc'),
 				})
 			}
-			console.log(
-				`User with type: ${type} has successfully left the room: ${roomNum}`,
-			)
 			cb({
 				success: true,
 			})
