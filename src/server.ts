@@ -5,7 +5,7 @@ import { Server } from 'socket.io'
 import cors from 'cors'
 import { joinRoomSchema, messageSchema } from './schemas/joinRoomSchema.js'
 import { leaveRoomSchema } from './schemas/leaveRoomSchema.js'
-import { wsArcjet } from './arcjet.js'
+import { securityMiddleware, wsArcjet } from './arcjet.js'
 import helmet from 'helmet'
 
 const app = express()
@@ -21,6 +21,10 @@ const allowedOrigins = [
 
 app.set('trust proxy', 1)
 
+app.use(express.json())
+
+app.use(securityMiddleware())
+
 app.use(helmet())
 
 app.use(
@@ -29,6 +33,8 @@ app.use(
 		methods: ['GET', 'POST', 'PUT', 'DELETE'],
 	}),
 )
+
+
 
 const rooms = new Map<string, { hasPc: boolean }>()
 
