@@ -1,10 +1,12 @@
-import express from 'express'
+import express, { Request, Response } from 'express'
 import http from 'http'
 import 'dotenv/config'
 import { Server } from 'socket.io'
 import cors from 'cors'
 import { joinRoomSchema, messageSchema } from './schemas/joinRoomSchema.js'
 import { leaveRoomSchema } from './schemas/leaveRoomSchema.js'
+import { securityMiddleware, wsArcjet } from './arcjet.js'
+import helmet from 'helmet'
 
 const app = express()
 
@@ -17,6 +19,14 @@ const allowedOrigins = [
 	'https://lang-transmit-client-jj9m72i3h-chaliyyehors-projects.vercel.app',
 ]
 
+app.set('trust proxy', 1)
+
+app.use(express.json())
+
+app.use(securityMiddleware())
+
+app.use(helmet())
+
 app.use(
 	cors({
 		origin: allowedOrigins,
@@ -27,15 +37,39 @@ app.use(
 const rooms = new Map<string, { hasPc: boolean }>()
 
 const io = new Server(server, {
+	maxHttpBufferSize: 1e4,
 	cors: {
 		origin: allowedOrigins,
 		methods: ['GET', 'POST'],
 	},
 })
 
-io.on('connection', socket => {
-	console.log('connected', socket.id)
+io.use(async (socket, next) => {
+	if (!wsArcjet) {
+		next()
+		return
+	}
 
+	try {
+		const decision = await wsArcjet.protect(socket.request)
+
+		if (decision.isDenied()) {
+			if (decision.reason.isRateLimit()) {
+				return next(new Error('Too Many Requests'))
+			}
+
+			return next(new Error('Forbidden'))
+		}
+
+		next()
+	} catch (error) {
+		console.error('WebSocket upgrade protection error:', error)
+
+		return next(new Error('Internal Server Error'))
+	}
+})
+
+io.on('connection', socket => {
 	socket.on(
 		'connectToRoom',
 		async (
@@ -43,7 +77,6 @@ io.on('connection', socket => {
 			cb: (response: { success: boolean; error?: string }) => void,
 		) => {
 			if (!cb || typeof cb !== 'function') {
-				console.log('Callback is not a function')
 				return
 			}
 			const parsed = joinRoomSchema.safeParse(data)
@@ -68,8 +101,6 @@ io.on('connection', socket => {
 			 * Это НЕ второй PC.
 			 */
 			if (socket.data.type === type && socket.data.roomNum === roomNum) {
-				console.log(`Socket ${socket.id} is already in room ${roomNum}`)
-
 				cb({
 					success: true,
 				})
@@ -133,8 +164,6 @@ io.on('connection', socket => {
 			 */
 			socket.join(roomNum)
 
-			console.log('Rooms:', rooms)
-
 			cb({
 				success: true,
 			})
@@ -156,12 +185,10 @@ io.on('connection', socket => {
 	socket.on('message', data => {
 		const parsed = messageSchema.safeParse(data)
 		if (!parsed.success) {
-			console.log(parsed.error.issues)
 			return
 		}
 		const { roomNum, lang } = parsed.data
 		if (!socket.data.roomNum || socket.data.roomNum !== roomNum) {
-			console.log(`Socket ${socket.id} is not in room ${roomNum}`)
 			return
 		}
 		socket.to(roomNum).emit('message', { type: 'lang', data: lang })
@@ -171,8 +198,6 @@ io.on('connection', socket => {
 		const { type, roomNum } = socket.data
 
 		if (!roomNum) return
-
-		console.log(`Disconnected: ${type} from room ${roomNum}`)
 
 		if (type === 'pc') {
 			const room = rooms.get(roomNum)
@@ -250,14 +275,15 @@ io.on('connection', socket => {
 					pcConnected: users.some(user => user.data.type === 'pc'),
 				})
 			}
-			console.log(
-				`User with type: ${type} has successfully left the room: ${roomNum}`,
-			)
 			cb({
 				success: true,
 			})
 		},
 	)
+})
+
+app.get('/', (req: Request, res: Response) => {
+	res.send('Language Transmit Server is running')
 })
 
 server.listen(port, () => {
