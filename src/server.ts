@@ -5,6 +5,7 @@ import { Server } from 'socket.io'
 import cors from 'cors'
 import { joinRoomSchema, messageSchema } from './schemas/joinRoomSchema.js'
 import { leaveRoomSchema } from './schemas/leaveRoomSchema.js'
+import { wsArcjet } from './arcjet.js'
 
 const app = express()
 
@@ -31,6 +32,31 @@ const io = new Server(server, {
 		origin: allowedOrigins,
 		methods: ['GET', 'POST'],
 	},
+})
+
+io.use(async (socket, next) => {
+	if (!wsArcjet) {
+		next()
+		return
+	}
+
+	try {
+		const decision = await wsArcjet.protect(socket.request)
+
+		if (decision.isDenied()) {
+			if (decision.reason.isRateLimit()) {
+				return next(new Error('Too Many Requests'))
+			}
+
+			return next(new Error('Forbidden'))
+		}
+
+		next()
+	} catch (error) {
+		console.error('WebSocket upgrade protection error:', error)
+
+		return next(new Error('Internal Server Error'))
+	}
 })
 
 io.on('connection', socket => {
