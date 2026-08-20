@@ -17,7 +17,7 @@ const allowedOrigins = [
 	process.env.CLIENT_URL || 'http://localhost:5173',
 	process.env.TAURI_URL || 'http://localhost:3000',
 	process.env.VERCEL_URL || '',
-	process.env.TAURI_PROD_URL || '',
+	process.env.TAURI_PROD_URL || 'http://tauri.localhost',
 ]
 
 app.set('trust proxy', 1)
@@ -27,6 +27,16 @@ app.use(express.json())
 app.use(securityMiddleware())
 
 app.use(helmet())
+
+app.use((req, _res, next) => {
+	console.log('--- REQUEST ---')
+	console.log('Method:', req.method)
+	console.log('URL:', req.url)
+	console.log('Origin:', req.headers.origin)
+	console.log('Allowed origins:', allowedOrigins)
+	console.log('----------------')
+	next()
+})
 
 app.use(
 	cors({
